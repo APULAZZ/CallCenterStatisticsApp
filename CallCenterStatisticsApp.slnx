@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="CallCenterStatisticsApp.UI/CallCenterStatisticsApp.UI.csproj" />
+  <Project Path="CallCenterStatisticsApp/CallCenterStatisticsApp.csproj" />
+</Solution>

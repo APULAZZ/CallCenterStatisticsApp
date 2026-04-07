@@ -1,0 +1,120 @@
+<Window x:Class="CallCenterStatisticsApp.UI.MangoApiTestWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Тест MANGO API"
+        Height="650"
+        Width="1000"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Тест подключения и методов MANGO API"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Margin="0,0,0,15"/>
+
+        <StackPanel Grid.Row="1">
+            <WrapPanel Margin="0,0,0,10">
+                <Button Content="Сотрудники"
+                        Width="140"
+                        Height="34"
+                        Margin="0,0,10,10"
+                        Click="LoadUsersButton_Click"/>
+
+                <Button Content="Группы"
+                        Width="140"
+                        Height="34"
+                        Margin="0,0,10,10"
+                        Click="LoadGroupsButton_Click"/>
+
+                <Button Content="Тематики"
+                        Width="140"
+                        Height="34"
+                        Margin="0,0,10,10"
+                        Click="LoadTopicsButton_Click"/>
+
+                <Button Content="Очистить"
+                        Width="140"
+                        Height="34"
+                        Margin="0,0,10,10"
+                        Click="ClearButton_Click"/>
+
+				<Button Content="Сотрудники RAW"
+                        Width="140"
+                        Height="34"
+                        Margin="0,0,10,10"
+                        Click="LoadUsersRawButton_Click"/>
+
+				<Button Content="Группы RAW"
+						Width="140"
+						Height="34"
+						Margin="0,0,10,10"
+						Click="LoadGroupsRawButton_Click"/>
+
+				<Button Content="Тематики RAW"
+						Width="140"
+						Height="34"
+						Margin="0,0,10,10"
+						Click="LoadTopicsRawButton_Click"/>
+
+				<Button Content="Звонки RAW"
+                        Width="160"
+                        Height="34"
+                        Margin="10,20,0,0"
+                        Click="LoadCallsRawButton_Click"/>
+            </WrapPanel>
+
+            <WrapPanel Margin="0,0,0,10">
+                <StackPanel Margin="0,0,15,0">
+                    <TextBlock Text="Дата с"/>
+                    <DatePicker x:Name="FromDatePicker" Width="160"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,15,0">
+                    <TextBlock Text="Дата по"/>
+                    <DatePicker x:Name="ToDatePicker" Width="160"/>
+                </StackPanel>
+
+                <StackPanel VerticalAlignment="Bottom">
+                    <Button Content="Звонки за период"
+                            Width="160"
+                            Height="34"
+                            Margin="0,20,0,0"
+                            Click="LoadCallsButton_Click"/>
+                </StackPanel>
+            </WrapPanel>
+
+            <TextBlock x:Name="StatusTextBlock"
+                       Foreground="DarkBlue"
+                       FontWeight="SemiBold"
+                       Margin="0,0,0,10"
+                       Text="Готово."/>
+        </StackPanel>
+
+        <TextBox x:Name="OutputTextBox"
+                 Grid.Row="2"
+                 AcceptsReturn="True"
+                 AcceptsTab="True"
+                 VerticalScrollBarVisibility="Auto"
+                 HorizontalScrollBarVisibility="Auto"
+                 TextWrapping="NoWrap"
+                 FontFamily="Consolas"
+                 FontSize="13"
+                 IsReadOnly="True"/>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,15,0,0">
+            <Button Content="Назад"
+                    Width="120"
+                    Height="34"
+                    Click="BackButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

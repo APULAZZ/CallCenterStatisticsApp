@@ -1,0 +1,124 @@
+<Window x:Class="CallCenterStatisticsApp.UI.CallLogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Журнал звонков"
+        Height="650"
+        Width="1200"
+        WindowStartupLocation="CenterScreen">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Журнал звонков"
+                   FontSize="22"
+                   FontWeight="Bold"
+                   Margin="0,0,0,15"/>
+
+        <StackPanel Grid.Row="1">
+            <WrapPanel Margin="0,0,0,10">
+                <StackPanel Margin="0,0,15,0">
+                    <TextBlock Text="Дата с"/>
+                    <DatePicker x:Name="FromDatePicker" Width="150"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,15,0">
+                    <TextBlock Text="Дата по"/>
+                    <DatePicker x:Name="ToDatePicker" Width="150"/>
+                </StackPanel>
+
+                <StackPanel Margin="0,0,15,0">
+                    <TextBlock Text="Направление"/>
+                    <ComboBox x:Name="DirectionComboBox" Width="160" SelectedIndex="0">
+                        <ComboBoxItem Content="Все"/>
+                        <ComboBoxItem Content="Входящие"/>
+                        <ComboBoxItem Content="Исходящие"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel VerticalAlignment="Bottom">
+                    <Button Content="Обновить"
+                            Width="120"
+                            Height="34"
+                            Margin="0,20,10,0"
+                            Click="RefreshButton_Click"/>
+                </StackPanel>
+            </WrapPanel>
+
+            <TextBlock x:Name="SummaryTextBlock"
+                       Margin="0,0,0,10"
+                       FontWeight="SemiBold"
+                       Foreground="DarkBlue"
+                       Text="Записей: 0"/>
+        </StackPanel>
+
+        <DataGrid x:Name="CallsDataGrid"
+                  Grid.Row="2"
+                  AutoGenerateColumns="False"
+                  IsReadOnly="True"
+                  CanUserAddRows="False"
+                  HeadersVisibility="Column"
+                  GridLinesVisibility="All"
+                  RowHeight="26"
+                  ColumnHeaderHeight="32">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="Дата/время"
+                                    Binding="{Binding CallDateTime, StringFormat=dd.MM.yyyy HH:mm:ss}"
+                                    Width="150"/>
+
+                <DataGridTextColumn Header="Сотрудник"
+                                    Binding="{Binding EmployeeName}"
+                                    Width="200"/>
+
+                <DataGridTextColumn Header="Группа"
+                                    Binding="{Binding GroupName}"
+                                    Width="180"/>
+
+                <DataGridTextColumn Header="Тематика"
+                                    Binding="{Binding TopicName}"
+                                    Width="220"/>
+
+                <DataGridTextColumn Header="Номер"
+                                    Binding="{Binding ExternalPhoneNumber}"
+                                    Width="140"/>
+
+                <DataGridTextColumn Header="Направление"
+                                    Binding="{Binding DirectionDisplay}"
+                                    Width="100"/>
+
+                <DataGridTextColumn Header="Статус"
+                                    Binding="{Binding StatusText}"
+                                    Width="120"/>
+
+                <DataGridTextColumn Header="Длительность"
+                                    Binding="{Binding DurationSeconds}"
+                                    Width="90"/>
+
+                <DataGridCheckBoxColumn Header="Отвечен"
+                                        Binding="{Binding IsAnswered}"
+                                        Width="80"/>
+
+                <DataGridCheckBoxColumn Header="Пропущен вх."
+                                        Binding="{Binding IsMissedIncoming}"
+                                        Width="100"/>
+
+                <DataGridCheckBoxColumn Header="Исх. без ответа"
+                                        Binding="{Binding IsOutgoingNoAnswer}"
+                                        Width="120"/>
+            </DataGrid.Columns>
+        </DataGrid>
+
+        <StackPanel Grid.Row="3"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,15,0,0">
+            <Button Content="Назад"
+                    Width="110"
+                    Height="34"
+                    Click="BackButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>
