@@ -1,6 +1,7 @@
 ﻿using CallCenterStatisticsApp.Data;
 using CallCenterStatisticsApp.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Windows;
@@ -14,17 +15,27 @@ public partial class App : Application
     public App()
     {
         AppHost = Host.CreateDefaultBuilder()
+            .ConfigureAppConfiguration((_, configuration) =>
+            {
+                configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
+            })
             .ConfigureServices((context, services) =>
             {
+                var connectionString = context.Configuration.GetConnectionString("CallCenterStatistics")
+                    ?? @"Server=(localdb)\MSSQLLocalDB;Database=CallCenterStatisticsDb;Trusted_Connection=True;TrustServerCertificate=True;";
+
                 services.AddDbContext<AppDbContext>(options =>
-                    options.UseSqlServer(
-                        @"Server=SQL;Database=CallCenterStatisticsDb;Trusted_Connection=True;TrustServerCertificate=True;"));
+                    options.UseSqlServer(connectionString));
 
                 services.AddSingleton(new MangoApiOptions
                 {
-                    BaseUrl = "https://app.mango-office.ru",
-                    ApiKey = "aoijryxexlw39spfy2cat6ekhafukfhk",
-                    ApiSalt = "7aa0b02auj5bja1lno57rr9hphz1q9jt"
+                    BaseUrl = context.Configuration["MangoApi:BaseUrl"] ?? "https://app.mango-office.ru",
+                    ApiKey = context.Configuration["MangoApi:ApiKey"]
+                        ?? Environment.GetEnvironmentVariable("MANGO_API_KEY")
+                        ?? string.Empty,
+                    ApiSalt = context.Configuration["MangoApi:ApiSalt"]
+                        ?? Environment.GetEnvironmentVariable("MANGO_API_SALT")
+                        ?? string.Empty
                 });
 
                 services.AddHttpClient<IMangoApiClient, MangoApiClient>();

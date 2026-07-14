@@ -281,6 +281,9 @@ FakesAssemblies/
 # GhostDoc plugin setting file
 *.GhostDoc.xml
 
+# Local secrets and machine-specific configuration
+appsettings.Local.json
+
 # Node.js Tools for Visual Studio
 .ntvs_analysis.dat
 node_modules/

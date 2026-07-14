@@ -239,6 +239,8 @@ public class MangoApiClient : IMangoApiClient
 
     private async Task<string> SendRequestAsync(string endpoint, object payload, CancellationToken cancellationToken)
     {
+        EnsureCredentialsConfigured();
+
         var json = JsonSerializer.Serialize(payload);
         var sign = CalculateSign(json);
 
@@ -271,6 +273,16 @@ public class MangoApiClient : IMangoApiClient
         var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(input));
 
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    private void EnsureCredentialsConfigured()
+    {
+        if (string.IsNullOrWhiteSpace(_options.ApiKey) || string.IsNullOrWhiteSpace(_options.ApiSalt))
+        {
+            throw new InvalidOperationException(
+                "Не заданы ключи MANGO API. Укажите MangoApi:ApiKey и MangoApi:ApiSalt в appsettings.Local.json " +
+                "или переменные окружения MANGO_API_KEY и MANGO_API_SALT.");
+        }
     }
 
     private static void EnsureMangoApiSuccess(string responseJson, string endpoint)

@@ -19,6 +19,8 @@ public partial class MangoImportWindow : Window
 
         FromDatePicker.SelectedDate = DateTime.Today.AddDays(-7);
         ToDatePicker.SelectedDate = DateTime.Today;
+        SyncGroupsCheckBox.IsChecked = false;
+        SyncGroupsCheckBox.IsEnabled = false;
     }
 
     private async void ImportButton_Click(object sender, RoutedEventArgs e)

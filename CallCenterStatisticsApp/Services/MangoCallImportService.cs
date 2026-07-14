@@ -37,12 +37,9 @@ public class MangoCallImportService
             var groups = await _db.CallGroups.ToListAsync(cancellationToken);
             var topics = await _db.CallTopics.ToListAsync(cancellationToken);
 
-            var existingCallIds = await _db.CallRecords
+            var existingRecords = await _db.CallRecords
                 .Where(x => x.CallDateTime >= from.AddDays(-1) && x.CallDateTime <= to.AddDays(1))
-                .Select(x => x.MangoCallId)
-                .ToListAsync(cancellationToken);
-
-            var existingCallIdSet = existingCallIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+                .ToDictionaryAsync(x => x.MangoCallId, StringComparer.OrdinalIgnoreCase, cancellationToken);
 
             int importedCount = 0;
             int skippedCount = 0;
@@ -56,51 +53,26 @@ public class MangoCallImportService
                     continue;
                 }
 
-                if (existingCallIdSet.Contains(dto.CallId))
-                {
-                    skippedCount++;
-                    continue;
-                }
-
                 var employee = await FindOrCreateEmployeeAsync(employees, dto, cancellationToken);
                 var group = await FindOrCreateGroupAsync(groups, dto, cancellationToken);
                 var topic = FindTopic(topics, dto);
 
-                var record = new CallRecord
+                if (existingRecords.TryGetValue(dto.CallId, out var record))
                 {
-                    MangoCallId = dto.CallId,
-                    CallDateTime = dto.CallDateTime == DateTime.MinValue ? DateTime.Now : dto.CallDateTime,
-
-                    EmployeeId = employee?.Id,
-                    GroupId = group?.Id,
-                    TopicId = topic?.Id,
-
-                    ExternalPhoneNumber = dto.PhoneNumber,
-                    Direction = dto.Direction ?? string.Empty,
-                    StatusCode = dto.StatusCode,
-                    StatusText = dto.StatusText,
-                    RecordingId = dto.RecordingId,
-
-                    DurationSeconds = dto.DurationSeconds,
-                    TalkDurationSeconds = dto.TalkDurationSeconds,
-                    WaitDurationSeconds = CalculateWaitDuration(dto),
-
-                    IsIncoming = IsIncoming(dto),
-                    IsOutgoing = IsOutgoing(dto),
-                    IsAnswered = IsAnswered(dto),
-                    IsMissedIncoming = IsMissedIncoming(dto),
-                    IsOutgoingNoAnswer = IsOutgoingNoAnswer(dto),
-
-                    RawJson = dto.RawJson,
-                    ImportedAt = DateTime.Now
-                };
-
-                _db.CallRecords.Add(record);
-                existingCallIdSet.Add(dto.CallId);
-                importedCount++;
+                    ApplyDto(record, dto, employee, group, topic);
+                    updatedCount++;
+                }
+                else
+                {
+                    record = new CallRecord { MangoCallId = dto.CallId };
+                    ApplyDto(record, dto, employee, group, topic);
+                    _db.CallRecords.Add(record);
+                    existingRecords.Add(dto.CallId, record);
+                    importedCount++;
+                }
             }
 
-            updatedCount = await _db.SaveChangesAsync(cancellationToken);
+            await _db.SaveChangesAsync(cancellationToken);
 
             syncLog.ImportedCount = importedCount;
             syncLog.SkippedCount = skippedCount;
@@ -120,6 +92,36 @@ public class MangoCallImportService
 
             throw;
         }
+    }
+
+    private static void ApplyDto(
+        CallRecord record,
+        MangoCallDto dto,
+        Employee? employee,
+        CallGroup? group,
+        CallTopic? topic)
+    {
+        if (dto.CallDateTime != DateTime.MinValue)
+            record.CallDateTime = dto.CallDateTime;
+
+        record.EmployeeId = employee?.Id ?? record.EmployeeId;
+        record.GroupId = group?.Id ?? record.GroupId;
+        record.TopicId = topic?.Id ?? record.TopicId;
+        record.ExternalPhoneNumber = dto.PhoneNumber ?? record.ExternalPhoneNumber;
+        record.Direction = dto.Direction ?? record.Direction;
+        record.StatusCode = dto.StatusCode ?? record.StatusCode;
+        record.StatusText = dto.StatusText ?? record.StatusText;
+        record.RecordingId = dto.RecordingId ?? record.RecordingId;
+        record.DurationSeconds = dto.DurationSeconds ?? record.DurationSeconds;
+        record.TalkDurationSeconds = dto.TalkDurationSeconds ?? record.TalkDurationSeconds;
+        record.WaitDurationSeconds = CalculateWaitDuration(dto) ?? record.WaitDurationSeconds;
+        record.IsIncoming = IsIncoming(dto);
+        record.IsOutgoing = IsOutgoing(dto);
+        record.IsAnswered = IsAnswered(dto);
+        record.IsMissedIncoming = IsMissedIncoming(dto);
+        record.IsOutgoingNoAnswer = IsOutgoingNoAnswer(dto);
+        record.RawJson = dto.RawJson;
+        record.ImportedAt = DateTime.Now;
     }
 
     private async Task<Employee?> FindOrCreateEmployeeAsync(List<Employee> employees, MangoCallDto dto, CancellationToken cancellationToken)

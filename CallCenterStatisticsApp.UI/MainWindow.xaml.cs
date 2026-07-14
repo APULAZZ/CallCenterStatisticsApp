@@ -1,6 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace CallCenterStatisticsApp.UI;
 

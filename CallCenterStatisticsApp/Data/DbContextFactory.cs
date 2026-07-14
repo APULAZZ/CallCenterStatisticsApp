@@ -10,7 +10,7 @@ public class DbContextFactory : IDesignTimeDbContextFactory<AppDbContext>
         var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
 
         optionsBuilder.UseSqlServer(
-            @"Server=SQL;Database=CallCenterStatisticsDb;Trusted_Connection=True;TrustServerCertificate=True;");
+            @"Server=(localdb)\MSSQLLocalDB;Database=CallCenterStatisticsDb;Trusted_Connection=True;TrustServerCertificate=True;");
 
         return new AppDbContext(optionsBuilder.Options);
     }
