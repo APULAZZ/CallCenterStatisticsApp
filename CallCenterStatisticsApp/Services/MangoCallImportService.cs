@@ -53,6 +53,21 @@ public class MangoCallImportService
                     continue;
                 }
 
+                // The call-statistics report does not always include the manual Contact Center topic.
+                // For answered calls MANGO exposes it through /vpbx/cc/call/ by entry_id.
+                if (string.IsNullOrWhiteSpace(dto.TopicMangoId) && IsAnswered(dto))
+                {
+                    try
+                    {
+                        dto.TopicMangoId = await _api.GetCallTopicIdAsync(dto.CallId, cancellationToken);
+                    }
+                    catch (Exception) when (!cancellationToken.IsCancellationRequested)
+                    {
+                        // A regular PBX call may not have Contact Center data. Do not stop the whole import.
+                    }
+
+                }
+
                 var employee = await FindOrCreateEmployeeAsync(employees, dto, cancellationToken);
                 var group = await FindOrCreateGroupAsync(groups, dto, cancellationToken);
                 var topic = FindTopic(topics, dto);

@@ -6,6 +6,7 @@ public interface IMangoApiClient
     Task<List<MangoGroupDto>> GetGroupsAsync(CancellationToken cancellationToken = default);
     Task<List<MangoTopicDto>> GetTopicsAsync(CancellationToken cancellationToken = default);
     Task<List<MangoCallDto>> GetCallsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default);
+    Task<string?> GetCallTopicIdAsync(string entryId, CancellationToken cancellationToken = default);
 
 
     Task<string> GetUsersRawAsync(CancellationToken cancellationToken = default);

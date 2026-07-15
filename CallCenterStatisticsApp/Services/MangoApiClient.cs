@@ -46,6 +46,18 @@ public class MangoApiClient : IMangoApiClient
         return ParseCalls(responseJson);
     }
 
+    public async Task<string?> GetCallTopicIdAsync(string entryId, CancellationToken cancellationToken = default)
+    {
+        const string endpoint = "/vpbx/cc/call/";
+        var responseJson = await SendRequestAsync(endpoint, new { entry_id = entryId }, cancellationToken);
+
+        using var document = JsonDocument.Parse(responseJson);
+        if (!document.RootElement.TryGetProperty("call", out var call))
+            return null;
+
+        return MangoCallTagParser.GetFirstTag(call).Id;
+    }
+
     private async Task<string> SendRequestWithPayloadDebugAsync(string endpoint, object payload, CancellationToken cancellationToken)
     {
         var json = JsonSerializer.Serialize(payload);
@@ -570,10 +582,10 @@ public class MangoApiClient : IMangoApiClient
             }
         }
 
-        if (direction == "outgoing")
+        if (direction is "outgoing" or "internal")
         {
-            employeeMangoId ??= callerId;
-            employeeName ??= callerName;
+            employeeMangoId = callerId ?? employeeMangoId;
+            employeeName = callerName ?? employeeName;
         }
 
         string? topicMangoId = null;
