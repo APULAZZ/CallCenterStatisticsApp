@@ -15,4 +15,5 @@ public interface IMangoApiClient
     Task<List<MangoRecordingCategoryDto>> GetRecordingCategoriesAsync(
     string recordingId,
     CancellationToken cancellationToken = default);
+    Task<MangoRecordingFile> GetRecordingAsync(string recordingId, bool forDownload, CancellationToken cancellationToken = default);
 }

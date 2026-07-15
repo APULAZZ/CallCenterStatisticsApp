@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Windows;
+using CallCenterStatisticsApp.UI.Views;
 
 namespace CallCenterStatisticsApp.UI;
 
@@ -37,10 +38,13 @@ public partial class App : Application
                         ?? Environment.GetEnvironmentVariable("MANGO_API_SALT")
                         ?? string.Empty
                 });
+                services.AddSingleton<ThemeService>();
+                services.AddSingleton<BusyService>();
 
                 services.AddHttpClient<IMangoApiClient, MangoApiClient>();
                 services.AddScoped<MangoDirectorySyncService>();
                 services.AddScoped<MangoCallImportService>();
+                services.AddScoped<MangoSynchronizationService>();
                 services.AddScoped<CallStatisticsService>();
                 services.AddTransient<MangoImportWindow>();
                 services.AddTransient<EmployeeStatisticsWindow>();
@@ -51,7 +55,15 @@ public partial class App : Application
                 services.AddTransient<GroupStatisticsWindow>();
                 services.AddScoped<MangoCallTopicEnrichmentService>();
                 services.AddTransient<TopicEnrichmentWindow>();
+                services.AddTransient<DashboardPage>();
+                services.AddTransient<JournalPage>();
+                services.AddTransient<EmployeeStatisticsPage>();
+                services.AddTransient<GroupStatisticsPage>();
+                services.AddTransient<ImportPage>();
+                services.AddTransient<TopicEnrichmentPage>();
+                services.AddTransient<SettingsPage>();
                 services.AddTransient<MainWindow>();
+                services.AddTransient<CallDetailsWindow>();
             })
             .Build();
     }

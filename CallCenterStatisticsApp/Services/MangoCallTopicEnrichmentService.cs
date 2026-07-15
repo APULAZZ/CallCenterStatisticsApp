@@ -79,4 +79,28 @@ public class MangoCallTopicEnrichmentService
         await _db.SaveChangesAsync(cancellationToken);
         return updated;
     }
+
+    public async Task<int> RestoreTopicsFromImportedDataAsync(CancellationToken cancellationToken = default)
+    {
+        var topics = await _db.CallTopics.AsNoTracking().Where(x => x.MangoTopicId != null).ToListAsync(cancellationToken);
+        var calls = await _db.CallRecords.Where(x => x.TopicId == null && x.RawJson != null).ToListAsync(cancellationToken);
+        var updated = 0;
+        foreach (var call in calls)
+        {
+            try
+            {
+                using var document = System.Text.Json.JsonDocument.Parse(call.RawJson!);
+                var tag = MangoCallTagParser.GetFirstTag(document.RootElement);
+                var topic = topics.FirstOrDefault(x => string.Equals(x.MangoTopicId, tag.Id, StringComparison.OrdinalIgnoreCase))
+                    ?? topics.FirstOrDefault(x => string.Equals(x.Name, tag.Name, StringComparison.OrdinalIgnoreCase));
+                if (topic is null) continue;
+                call.TopicId = topic.Id;
+                updated++;
+            }
+            catch (System.Text.Json.JsonException) { }
+        }
+        if (updated > 0) await _db.SaveChangesAsync(cancellationToken);
+        return updated;
+    }
+
 }

@@ -695,6 +695,22 @@ public class MangoApiClient : IMangoApiClient
         return ParseRecordingCategories(responseJson);
     }
 
+    public async Task<MangoRecordingFile> GetRecordingAsync(string recordingId, bool forDownload, CancellationToken cancellationToken = default)
+    {
+        EnsureCredentialsConfigured();
+        const string endpoint = "/vpbx/queries/recording/post/";
+        var json = JsonSerializer.Serialize(new { recording_id = recordingId, action = forDownload ? "download" : "play" });
+        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["vpbx_api_key"] = _options.ApiKey,
+            ["sign"] = CalculateSign(json),
+            ["json"] = json
+        });
+        using var response = await _httpClient.PostAsync($"{_options.BaseUrl.TrimEnd('/')}{endpoint}", content, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        return new MangoRecordingFile(await response.Content.ReadAsByteArrayAsync(cancellationToken), response.Content.Headers.ContentType?.MediaType ?? "audio/mpeg");
+    }
+
     private static List<MangoRecordingCategoryDto> ParseRecordingCategories(string responseJson)
     {
         var result = new List<MangoRecordingCategoryDto>();

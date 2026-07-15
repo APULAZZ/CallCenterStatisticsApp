@@ -15,6 +15,7 @@ public class MangoCallDto
     public string? GroupName { get; set; }
 
     public string? TopicMangoId { get; set; }
+    public string? TopicName { get; set; }
 
     public string? RecordingId { get; set; }
 

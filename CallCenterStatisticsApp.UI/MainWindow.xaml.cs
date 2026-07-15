@@ -1,60 +1,78 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using CallCenterStatisticsApp.UI.Views;
+using Microsoft.Extensions.DependencyInjection;
 using System.Windows;
 
 namespace CallCenterStatisticsApp.UI;
 
 public partial class MainWindow : Window
 {
-    public MainWindow()
+    private readonly DashboardPage _dashboardPage;
+    private readonly JournalPage _journalPage;
+    private readonly EmployeeStatisticsPage _employeeStatisticsPage;
+    private readonly GroupStatisticsPage _groupStatisticsPage;
+    private readonly ImportPage _importPage;
+    private readonly TopicEnrichmentPage _topicEnrichmentPage;
+    private readonly SettingsPage _settingsPage;
+    private readonly BusyService _busy;
+
+    public MainWindow(DashboardPage dashboardPage, JournalPage journalPage, EmployeeStatisticsPage employeeStatisticsPage, GroupStatisticsPage groupStatisticsPage, ImportPage importPage, TopicEnrichmentPage topicEnrichmentPage, SettingsPage settingsPage, BusyService busy)
     {
         InitializeComponent();
+        _dashboardPage = dashboardPage;
+        _journalPage = journalPage;
+        _employeeStatisticsPage = employeeStatisticsPage;
+        _groupStatisticsPage = groupStatisticsPage;
+        _importPage = importPage;
+        _topicEnrichmentPage = topicEnrichmentPage;
+        _settingsPage = settingsPage;
+        _busy = busy;
+        _busy.Changed += Busy_Changed;
+        ShowPage(_dashboardPage, "Обзор", "Готово к работе");
     }
 
-    private void ImportButton_Click(object sender, RoutedEventArgs e)
+    private void DashboardButton_Click(object sender, RoutedEventArgs e) => ShowPage(_dashboardPage, "Обзор", "Готово к работе");
+    private async void JournalButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = App.AppHost.Services.GetRequiredService<MangoImportWindow>();
-        Hide();
-        window.Owner = this;
-        window.Show();
+        ShowPage(_journalPage, "Журнал звонков", "Загружаем журнал звонков…");
+        await _journalPage.LoadTodayAsync();
+        StatusText.Text = "Журнал обновлён";
     }
 
-    private void MangoApiTestButton_Click(object sender, RoutedEventArgs e)
+    private void ShowPage(object page, string title, string status)
     {
-        var window = App.AppHost.Services.GetRequiredService<MangoApiTestWindow>();
-        Hide();
-        window.Owner = this;
-        window.Show();
+        PageContent.Content = page;
+        PageTitle.Text = title;
+        StatusText.Text = status;
     }
 
-    private void EmployeeStatsButton_Click(object sender, RoutedEventArgs e)
+    private void ImportButton_Click(object sender, RoutedEventArgs e) => ShowPage(_importPage, "Импорт из Mango", "Выберите период для синхронизации");
+    private void MangoApiTestButton_Click(object sender, RoutedEventArgs e) => ShowPage(_settingsPage, "Настройки", "Параметры подключения Mango");
+    private async void EmployeeStatsButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = App.AppHost.Services.GetRequiredService<EmployeeStatisticsWindow>();
-        Hide();
+        ShowPage(_employeeStatisticsPage, "Статистика сотрудников", "Загружаем отчёт…");
+        await _employeeStatisticsPage.LoadAsync();
+        StatusText.Text = "Отчёт по сотрудникам готов";
+    }
+    private async void GroupStatsButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowPage(_groupStatisticsPage, "Статистика групп", "Загружаем отчёт…");
+        await _groupStatisticsPage.LoadAsync();
+        StatusText.Text = "Отчёт по группам готов";
+    }
+    private void TopicEnrichmentButton_Click(object sender, RoutedEventArgs e) => ShowPage(_topicEnrichmentPage, "Речевая аналитика", "Готово к обработке записей");
+
+    private void OpenWindow<TWindow>() where TWindow : Window
+    {
+        var window = App.AppHost.Services.GetRequiredService<TWindow>();
         window.Owner = this;
-        window.Show();
+        window.ShowDialog();
     }
 
-    private void CallLogButton_Click(object sender, RoutedEventArgs e)
+    private void Busy_Changed(object? sender, BusyChangedEventArgs e)
     {
-        var window = App.AppHost.Services.GetRequiredService<CallLogWindow>();
-        Hide();
-        window.Owner = this;
-        window.Show();
-    }
-
-    private void TopicEnrichmentButton_Click(object sender, RoutedEventArgs e)
-    {
-        var window = App.AppHost.Services.GetRequiredService<TopicEnrichmentWindow>();
-        Hide();
-        window.Owner = this;
-        window.Show();
-    }
-
-    private void GroupStatsButton_Click(object sender, RoutedEventArgs e)
-    {
-        var window = App.AppHost.Services.GetRequiredService<GroupStatisticsWindow>();
-        Hide();
-        window.Owner = this;
-        window.Show();
+        BusyOverlay.Visibility = e.IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        BusyMessageText.Text = e.Message;
+        if (e.IsBusy) StatusText.Text = e.Message;
+        else StatusText.Text = "Готово";
     }
 }
