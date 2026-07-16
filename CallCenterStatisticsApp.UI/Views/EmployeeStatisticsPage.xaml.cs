@@ -2,9 +2,11 @@ using CallCenterStatisticsApp.Data;
 using CallCenterStatisticsApp.Services;
 using CallCenterStatisticsApp.UI;
 using Microsoft.EntityFrameworkCore;
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
+using System.Windows.Data;
 using System.Windows.Media;
 
 namespace CallCenterStatisticsApp.UI.Views;
@@ -13,6 +15,7 @@ public partial class EmployeeStatisticsPage : UserControl
 {
     private readonly AppDbContext _db;
     private readonly CallStatisticsService _statistics;
+    private readonly MangoCallImportService _callImport;
     private readonly BusyService _busy;
     private MultiChoiceFilter _employeeFilter = null!;
     private MultiChoiceFilter _groupFilter = null!;
@@ -24,12 +27,16 @@ public partial class EmployeeStatisticsPage : UserControl
     private DateTime _periodFrom;
     private DateTime _periodTo;
     private List<(int Id, string Name)> _availableTopics = [];
+    private List<EmployeeStatRow> _reportRows = [];
+    private string? _sortMember;
+    private ListSortDirection _sortDirection;
 
-    public EmployeeStatisticsPage(AppDbContext db, CallStatisticsService statistics, BusyService busy)
+    public EmployeeStatisticsPage(AppDbContext db, CallStatisticsService statistics, MangoCallImportService callImport, BusyService busy)
     {
         InitializeComponent();
         _db = db;
         _statistics = statistics;
+        _callImport = callImport;
         _busy = busy;
         _employeeFilter = ConfigureMultiChoiceFilter(EmployeeComboBox, "Все сотрудники", "Без сотрудников");
         _groupFilter = ConfigureMultiChoiceFilter(GroupComboBox, "Все группы", "Без групп");
@@ -39,6 +46,7 @@ public partial class EmployeeStatisticsPage : UserControl
 
         foreach (var column in StatsDataGrid.Columns) column.Width = DataGridLength.SizeToHeader;
         StatsDataGrid.Columns[0].Width = DataGridLength.SizeToCells;
+        StatsDataGrid.Sorting += StatsDataGrid_Sorting;
         PeriodComboBox.SelectedValue = "Today";
         ApplyQuickPeriod("Today");
         _ready = true;
@@ -55,7 +63,7 @@ public partial class EmployeeStatisticsPage : UserControl
     private async void RefreshButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_filtersLoaded) await LoadFiltersAsync();
-        await LoadDataAsync();
+        await LoadDataAsync(synchronizeWithMango: true);
     }
 
     private async void PeriodComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -85,7 +93,7 @@ public partial class EmployeeStatisticsPage : UserControl
             "ThirtyDays" => today.AddDays(-29),
             _ => today
         };
-        _periodTo = today;
+        _periodTo = period == "Yesterday" ? today.AddDays(-1) : today;
         FromDatePicker.SelectedDate = _periodFrom;
         ToDatePicker.SelectedDate = _periodTo;
         CustomPeriodPanel.Visibility = Visibility.Collapsed;
@@ -102,20 +110,27 @@ public partial class EmployeeStatisticsPage : UserControl
         var groups = await _db.CallGroups.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync();
         ConfigureMultiChoiceOptions(_groupFilter, groups.Select(x => new FilterOption([x.Id], x.Name)));
         SelectDefaultGroup("Коллцентр");
+        await ConfigureEmployeeOptionsAsync();
         var topics = await _db.CallTopics.AsNoTracking().OrderBy(x => x.Name).Select(x => new { x.Id, x.Name }).ToListAsync();
         _availableTopics = topics.Select(x => (x.Id, x.Name)).ToList();
         ConfigureTopicOptions();
         _filtersLoaded = true;
     }
 
-    private async Task LoadDataAsync()
+    private async Task LoadDataAsync(bool synchronizeWithMango = false)
     {
         if (!TryGetPeriod(out var from, out var to)) return;
 
         using var operation = _busy.Begin("Формируем статистику сотрудников…");
+        if (synchronizeWithMango)
+            await _callImport.EnsurePeriodImportedAsync(from, to);
+
         var filter = new EmployeeStatisticsFilter
         {
-            EmployeeIds = GetSelectedIds(_employeeFilter),
+            // "All employees" means no additional restriction. This is
+            // important after MANGO has created a technical duplicate while
+            // refreshing the current day: it must still be included by group.
+            EmployeeIds = _employeeFilter.AllCheckBox.IsChecked == true ? null : GetSelectedIds(_employeeFilter),
             WithoutEmployees = _employeeFilter.WithoutCheckBox.IsChecked == true,
             GroupIds = GetSelectedIds(_groupFilter),
             WithoutGroups = _groupFilter.WithoutCheckBox.IsChecked == true,
@@ -125,8 +140,48 @@ public partial class EmployeeStatisticsPage : UserControl
             IgnoreTopics = _topicFilter.IgnoreCheckBox?.IsChecked == true
         };
         var rows = await _statistics.GetEmployeeStatsAsync(from, to, filter);
-        StatsDataGrid.ItemsSource = rows;
+        _reportRows = rows;
+        DisplayRows();
         SummaryTextBlock.Text = $"Сотрудников в отчёте: {rows.Count(x => !x.IsTotal):N0}";
+    }
+
+    private void StatsDataGrid_Sorting(object sender, DataGridSortingEventArgs e)
+    {
+        var sortMember = e.Column.SortMemberPath;
+        if (string.IsNullOrWhiteSpace(sortMember) && e.Column is DataGridBoundColumn boundColumn && boundColumn.Binding is Binding binding)
+            sortMember = binding.Path?.Path;
+        if (string.IsNullOrWhiteSpace(sortMember)) return;
+
+        e.Handled = true;
+        _sortDirection = string.Equals(_sortMember, sortMember, StringComparison.Ordinal)
+            && _sortDirection == ListSortDirection.Ascending
+            ? ListSortDirection.Descending
+            : ListSortDirection.Ascending;
+        _sortMember = sortMember;
+
+        foreach (var column in StatsDataGrid.Columns)
+            column.SortDirection = null;
+        e.Column.SortDirection = _sortDirection;
+        DisplayRows();
+    }
+
+    private void DisplayRows()
+    {
+        var total = _reportRows.FirstOrDefault(x => x.IsTotal);
+        IEnumerable<EmployeeStatRow> rows = _reportRows.Where(x => !x.IsTotal);
+
+        if (!string.IsNullOrWhiteSpace(_sortMember))
+        {
+            var property = typeof(EmployeeStatRow).GetProperty(_sortMember);
+            if (property is not null)
+            {
+                rows = _sortDirection == ListSortDirection.Ascending
+                    ? rows.OrderBy(x => property.GetValue(x))
+                    : rows.OrderByDescending(x => property.GetValue(x));
+            }
+        }
+
+        StatsDataGrid.ItemsSource = total is null ? rows.ToList() : rows.Append(total).ToList();
     }
 
     private MultiChoiceFilter ConfigureMultiChoiceFilter(ComboBox comboBox, string allText, string withoutText)
@@ -193,23 +248,13 @@ public partial class EmployeeStatisticsPage : UserControl
     private void ConfigureTopicOptions()
     {
         var options = _topicFilter.CombineCheckBox?.IsChecked == true
-            ? _availableTopics.GroupBy(x => GetCombinedTopicName(x.Name), StringComparer.OrdinalIgnoreCase)
+            ? _availableTopics.GroupBy(x => CallCenterTopicCatalog.GetDisplayName(x.Name), StringComparer.OrdinalIgnoreCase)
                 .OrderBy(x => x.Key)
                 .Select(x => new FilterOption(x.Select(y => y.Id).ToList(), x.Key))
             : _availableTopics.Select(x => new FilterOption([x.Id], x.Name));
         ConfigureMultiChoiceOptions(_topicFilter, options);
     }
 
-    private static string GetCombinedTopicName(string topicName)
-    {
-        var name = topicName.Trim();
-        foreach (var prefix in new[] { "вх ", "исх ", "вх. ", "исх. ", "входящий ", "исходящий " })
-        {
-            if (name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                return name[prefix.Length..].Trim();
-        }
-        return name;
-    }
 
     private void ConfigureMultiChoiceOptions(MultiChoiceFilter filter, IEnumerable<FilterOption> options)
     {
@@ -241,6 +286,8 @@ public partial class EmployeeStatisticsPage : UserControl
         foreach (var choice in filter.Choices) choice.CheckBox.IsChecked = isChecked;
         _suppressFilterChanges = false;
         UpdateFilterCaption(filter);
+        if (ReferenceEquals(filter, _groupFilter) && _filtersLoaded)
+            _ = ConfigureEmployeeOptionsAsync();
     }
 
     private void WithoutCheckBoxChanged(MultiChoiceFilter filter)
@@ -255,6 +302,8 @@ public partial class EmployeeStatisticsPage : UserControl
         }
         _suppressFilterChanges = false;
         UpdateFilterCaption(filter);
+        if (ReferenceEquals(filter, _groupFilter) && _filtersLoaded)
+            _ = ConfigureEmployeeOptionsAsync();
     }
 
     private void ChoiceCheckBoxChanged(MultiChoiceFilter filter, string changedTopicName)
@@ -270,6 +319,36 @@ public partial class EmployeeStatisticsPage : UserControl
         filter.AllCheckBox.IsChecked = filter.Choices.Count > 0 && filter.Choices.All(x => x.CheckBox.IsChecked == true);
         _suppressFilterChanges = false;
         UpdateFilterCaption(filter);
+        if (ReferenceEquals(filter, _groupFilter) && _filtersLoaded)
+            _ = ConfigureEmployeeOptionsAsync();
+    }
+
+    private async Task ConfigureEmployeeOptionsAsync()
+    {
+        var employees = await _db.Employees.AsNoTracking()
+            .OrderBy(x => x.FullName)
+            .Select(x => new { x.Id, x.FullName })
+            .ToListAsync();
+
+        var selectedGroupIds = GetSelectedIds(_groupFilter);
+        var groupFilterIsActive = _groupFilter.AllCheckBox.IsChecked != true &&
+                                  _groupFilter.WithoutCheckBox.IsChecked != true;
+        if (groupFilterIsActive && selectedGroupIds is { Count: > 0 })
+        {
+            var isCallCenterSelected = await _db.CallGroups.AsNoTracking().AnyAsync(x =>
+                selectedGroupIds.Contains(x.Id) && x.Name == "\u041a\u043e\u043b\u043b\u0446\u0435\u043d\u0442\u0440");
+            if (isCallCenterSelected)
+            {
+                employees = employees.Where(x =>
+                    x.FullName.StartsWith("\u041a\u0426 ", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(x.FullName, "\u0417\u043e\u044f \u0415\u0440\u0448\u043e\u0432\u0430", StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
+        }
+
+        ConfigureMultiChoiceOptions(_employeeFilter, employees
+            .GroupBy(x => x.FullName.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(x => new FilterOption(x.Select(y => y.Id).ToList(), x.First().FullName)));
     }
 
     private static void SynchronizeTopicGroupSelection(MultiChoiceFilter filter, string changedTopicName)

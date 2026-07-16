@@ -109,6 +109,26 @@ public class MangoCallImportService
         }
     }
 
+    /// <summary>
+    /// Uses locally completed days as a cache. The current day is always
+    /// refreshed because calls and their post-call data can still change.
+    /// </summary>
+    public async Task EnsurePeriodImportedAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
+    {
+        for (var day = from.Date; day <= to.Date; day = day.AddDays(1))
+        {
+            var dayStart = day;
+            var dayEnd = day.AddDays(1).AddSeconds(-1);
+            var isToday = day == DateTime.Today;
+            var isAlreadyImported = !isToday && await _db.MangoSyncLogs.AsNoTracking().AnyAsync(x =>
+                x.SyncType == "Calls" && x.IsSuccess && x.PeriodFrom <= dayStart && x.PeriodTo >= dayEnd,
+                cancellationToken);
+
+            if (!isAlreadyImported)
+                await ImportCallsAsync(dayStart, dayEnd, cancellationToken);
+        }
+    }
+
     private static void ApplyDto(
         CallRecord record,
         MangoCallDto dto,

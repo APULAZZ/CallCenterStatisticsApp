@@ -42,7 +42,7 @@ public class MangoCallTopicEnrichmentService
                 var firstCategory = categories.FirstOrDefault();
                 if (firstCategory == null)
                 {
-                    await Task.Delay(500, cancellationToken);
+                    await Task.Delay(250, cancellationToken);
                     continue;
                 }
 
@@ -67,12 +67,12 @@ public class MangoCallTopicEnrichmentService
                     updated++;
                 }
 
-                await Task.Delay(500, cancellationToken);
+                await Task.Delay(250, cancellationToken);
             }
             catch
             {
                 // Пока просто пропускаем проблемные записи, чтобы не ронять весь batch.
-                await Task.Delay(1000, cancellationToken);
+                await Task.Delay(500, cancellationToken);
             }
         }
 

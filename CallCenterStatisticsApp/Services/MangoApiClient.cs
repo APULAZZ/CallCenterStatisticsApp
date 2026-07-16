@@ -42,8 +42,30 @@ public class MangoApiClient : IMangoApiClient
 
     public async Task<List<MangoCallDto>> GetCallsAsync(DateTime from, DateTime to, CancellationToken cancellationToken = default)
     {
-        var responseJson = await GetCallsResponseJsonAsync(from, to, cancellationToken);
-        return ParseCalls(responseJson);
+        const int pageSize = 1000;
+        const int maxPages = 50;
+        const int pageRequestDelayMs = 5000;
+        var calls = new List<MangoCallDto>();
+
+        for (var page = 0; page < maxPages; page++)
+        {
+            var responseJson = await GetCallsResponseJsonAsync(from, to, page * pageSize, cancellationToken);
+            var pageCalls = ParseCalls(responseJson);
+            calls.AddRange(pageCalls);
+
+            if (pageCalls.Count < pageSize)
+                break;
+
+            // MANGO limits creation of statistics requests.  Do not start the
+            // next page immediately after the previous one has completed.
+            await Task.Delay(pageRequestDelayMs, cancellationToken);
+        }
+
+        return calls
+            .Where(x => !string.IsNullOrWhiteSpace(x.CallId))
+            .GroupBy(x => x.CallId, StringComparer.OrdinalIgnoreCase)
+            .Select(x => x.First())
+            .ToList();
     }
 
     public async Task<string?> GetCallTopicIdAsync(string entryId, CancellationToken cancellationToken = default)
@@ -62,46 +84,59 @@ public class MangoApiClient : IMangoApiClient
     {
         var json = JsonSerializer.Serialize(payload);
         var sign = CalculateSign(json);
+        const int maxAttempts = 5;
 
-        using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+        for (var attempt = 0; attempt < maxAttempts; attempt++)
         {
-            ["vpbx_api_key"] = _options.ApiKey,
-            ["sign"] = sign,
-            ["json"] = json
-        });
+            using var content = new FormUrlEncodedContent(new Dictionary<string, string>
+            {
+                ["vpbx_api_key"] = _options.ApiKey,
+                ["sign"] = sign,
+                ["json"] = json
+            });
 
-        using var response = await _httpClient.PostAsync(
-            $"{_options.BaseUrl.TrimEnd('/')}{endpoint}",
-            content,
-            cancellationToken);
+            using var response = await _httpClient.PostAsync(
+                $"{_options.BaseUrl.TrimEnd('/')}{endpoint}",
+                content,
+                cancellationToken);
 
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException(
-                $"HTTP error calling '{endpoint}'. " +
-                $"Status: {(int)response.StatusCode} {response.StatusCode}. " +
-                $"Payload: {json}. " +
-                $"Response: {responseJson}");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < maxAttempts - 1)
+            {
+                var delay = response.Headers.RetryAfter?.Delta ?? TimeSpan.FromSeconds(30 * (attempt + 1));
+                await Task.Delay(delay, cancellationToken);
+                continue;
+            }
+
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new InvalidOperationException(
+                    $"HTTP error calling '{endpoint}'. " +
+                    $"Status: {(int)response.StatusCode} {response.StatusCode}. " +
+                    $"Payload: {json}. " +
+                    $"Response: {responseJson}");
+            }
+
+            using var document = JsonDocument.Parse(responseJson);
+            var root = document.RootElement;
+
+            if (root.TryGetProperty("result", out var resultElement) &&
+                resultElement.ValueKind == JsonValueKind.Number &&
+                resultElement.TryGetInt32(out var resultCode) &&
+                resultCode != 1000)
+            {
+                throw new InvalidOperationException(
+                    $"MANGO API returned error for endpoint '{endpoint}'. " +
+                    $"Result code: {resultCode}. " +
+                    $"Payload: {json}. " +
+                    $"Response: {responseJson}");
+            }
+
+            return responseJson;
         }
 
-        using var document = JsonDocument.Parse(responseJson);
-        var root = document.RootElement;
-
-        if (root.TryGetProperty("result", out var resultElement) &&
-            resultElement.ValueKind == JsonValueKind.Number &&
-            resultElement.TryGetInt32(out var resultCode) &&
-            resultCode != 1000)
-        {
-            throw new InvalidOperationException(
-                $"MANGO API returned error for endpoint '{endpoint}'. " +
-                $"Result code: {resultCode}. " +
-                $"Payload: {json}. " +
-                $"Response: {responseJson}");
-        }
-
-        return responseJson;
+        throw new InvalidOperationException($"MANGO API did not accept a request to '{endpoint}' after {maxAttempts} attempts.");
     }
 
     #endregion
@@ -136,13 +171,16 @@ public class MangoApiClient : IMangoApiClient
     #region Calls two-step workflow
 
     private async Task<string> GetCallsResponseJsonAsync(DateTime from, DateTime to, CancellationToken cancellationToken)
+        => await GetCallsResponseJsonAsync(from, to, offset: 0, cancellationToken);
+
+    private async Task<string> GetCallsResponseJsonAsync(DateTime from, DateTime to, int offset, CancellationToken cancellationToken)
     {
-        var key = await StartCallsStatisticsAsync(from, to, cancellationToken);
+        var key = await StartCallsStatisticsAsync(from, to, offset, cancellationToken);
         var resultJson = await PollCallsStatisticsResultAsync(key, cancellationToken);
         return resultJson;
     }
 
-    private async Task<string> StartCallsStatisticsAsync(DateTime from, DateTime to, CancellationToken cancellationToken)
+    private async Task<string> StartCallsStatisticsAsync(DateTime from, DateTime to, int offset, CancellationToken cancellationToken)
     {
         const string endpoint = "/vpbx/stats/calls/request";
 
@@ -151,7 +189,7 @@ public class MangoApiClient : IMangoApiClient
             start_date = from.ToString("dd.MM.yyyy HH:mm:ss"),
             end_date = to.ToString("dd.MM.yyyy HH:mm:ss"),
             limit = "1000",
-            offset = "0"
+            offset = offset.ToString(System.Globalization.CultureInfo.InvariantCulture)
         };
 
         var responseJson = await SendRequestWithPayloadDebugAsync(endpoint, payload, cancellationToken);
@@ -175,8 +213,8 @@ public class MangoApiClient : IMangoApiClient
     {
         const string endpoint = "/vpbx/stats/calls/result/";
         const int maxAttempts = 30;
-        const int initialDelayMs = 3000;
-        const int pollDelayMs = 5000;
+        const int initialDelayMs = 1500;
+        const int pollDelayMs = 2500;
 
         await Task.Delay(initialDelayMs, cancellationToken);
 

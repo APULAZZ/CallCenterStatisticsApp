@@ -21,22 +21,41 @@ public class CallStatisticsService
 
         IQueryable<Employee> employeesQuery = _db.Employees.AsNoTracking();
         if (filter.EmployeeIds is { Count: > 0 } && !filter.WithoutEmployees)
-            employeesQuery = employeesQuery.Where(x => filter.EmployeeIds.Contains(x.Id));
+        {
+            // The directory can contain several technical MANGO identities for
+            // one displayed employee. A selection by name must include all of
+            // those identities, otherwise part of the calls disappears.
+            var selectedNames = await _db.Employees.AsNoTracking()
+                .Where(x => filter.EmployeeIds.Contains(x.Id))
+                .Select(x => x.FullName)
+                .Distinct()
+                .ToListAsync(cancellationToken);
+            employeesQuery = employeesQuery.Where(x => selectedNames.Contains(x.FullName));
+        }
         if (filter.WithoutEmployees)
             employeesQuery = employeesQuery.Where(_ => false);
 
         if (filter.LimitEmployeesToGroups && filter.GroupIds is { Count: > 0 })
         {
+            var callCenterGroupIds = await _db.CallGroups.AsNoTracking()
+                .Where(x => filter.GroupIds.Contains(x.Id) && x.Name == "\u041a\u043e\u043b\u043b\u0446\u0435\u043d\u0442\u0440")
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
             var linkedEmployeeIds = await _db.EmployeeGroups.AsNoTracking()
-                .Where(x => filter.GroupIds.Contains(x.GroupId))
+                .Where(x => filter.GroupIds.Contains(x.GroupId) && !callCenterGroupIds.Contains(x.GroupId))
                 .Select(x => x.EmployeeId)
                 .ToListAsync(cancellationToken);
             var historicalEmployeeIds = await _db.CallRecords.AsNoTracking()
-                .Where(x => x.GroupId.HasValue && filter.GroupIds.Contains(x.GroupId.Value) && x.EmployeeId.HasValue)
+                .Where(x => x.GroupId.HasValue && filter.GroupIds.Contains(x.GroupId.Value) && !callCenterGroupIds.Contains(x.GroupId.Value) && x.EmployeeId.HasValue)
                 .Select(x => x.EmployeeId!.Value)
                 .Distinct()
                 .ToListAsync(cancellationToken);
             var groupMemberEmployeeIds = linkedEmployeeIds.Concat(historicalEmployeeIds).Distinct().ToList();
+            var zoeEmployeeIds = await _db.Employees.AsNoTracking()
+                .Where(x => x.FullName == "\u0417\u043e\u044f \u0415\u0440\u0448\u043e\u0432\u0430")
+                .Select(x => x.Id)
+                .ToListAsync(cancellationToken);
+            groupMemberEmployeeIds.AddRange(zoeEmployeeIds);
             var isCallCenterSelected = await _db.CallGroups.AsNoTracking()
                 .AnyAsync(x => filter.GroupIds.Contains(x.Id) && x.Name == "Коллцентр", cancellationToken);
             employeesQuery = isCallCenterSelected

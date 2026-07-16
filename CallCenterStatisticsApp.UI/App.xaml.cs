@@ -41,7 +41,12 @@ public partial class App : Application
                 services.AddSingleton<ThemeService>();
                 services.AddSingleton<BusyService>();
 
-                services.AddHttpClient<IMangoApiClient, MangoApiClient>();
+                services.AddHttpClient<IMangoApiClient, MangoApiClient>(client =>
+                {
+                    // Формирование статистики и ожидание очереди MANGO могут
+                    // занимать больше стандартных 100 секунд HttpClient.
+                    client.Timeout = TimeSpan.FromMinutes(10);
+                });
                 services.AddScoped<MangoDirectorySyncService>();
                 services.AddScoped<MangoCallImportService>();
                 services.AddScoped<MangoSynchronizationService>();
@@ -58,6 +63,8 @@ public partial class App : Application
                 services.AddTransient<DashboardPage>();
                 services.AddTransient<JournalPage>();
                 services.AddTransient<EmployeeStatisticsPage>();
+                services.AddTransient<GoogleSheetsPage>();
+                services.AddTransient<AnnualSummaryPage>();
                 services.AddTransient<GroupStatisticsPage>();
                 services.AddTransient<ImportPage>();
                 services.AddTransient<TopicEnrichmentPage>();

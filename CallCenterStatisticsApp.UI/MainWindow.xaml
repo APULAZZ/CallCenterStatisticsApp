@@ -26,7 +26,7 @@
                     <Button Style="{StaticResource NavButton}" Content="◷   Статистика сотрудников" Click="EmployeeStatsButton_Click"/>
                     <Button Style="{StaticResource NavButton}" Content="◫   Статистика групп" Click="GroupStatsButton_Click"/>
                     <Button Style="{StaticResource NavButton}" Content="⇩   Импорт из Mango" Click="ImportButton_Click"/>
-                    <Button Style="{StaticResource NavButton}" Content="✦   Речевая аналитика" Click="TopicEnrichmentButton_Click"/>
+                    <Button Style="{StaticResource NavButton}" Content="▤   Гугл-таблички" Click="GoogleSheetsButton_Click"/>
                 </StackPanel>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,0,0,20">
                     <Separator Background="#2B3B58" Margin="20,8"/>

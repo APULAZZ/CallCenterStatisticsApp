@@ -30,7 +30,7 @@ public partial class JournalPage : UserControl
     private StackPanel _topicChoicesPanel = null!;
     private CheckBox _allTopicsCheckBox = null!;
     private CheckBox _withoutTopicsCheckBox = null!;
-    private readonly List<(int Id, CheckBox CheckBox)> _topicCheckBoxes = new();
+    private readonly List<(IReadOnlyList<int> Ids, CheckBox CheckBox)> _topicCheckBoxes = new();
     private bool _suppressTopicSelectionChange;
     private MultiChoiceFilter _employeeFilter = null!;
     private MultiChoiceFilter _groupFilter = null!;
@@ -394,13 +394,15 @@ public partial class JournalPage : UserControl
         _topicChoicesPanel.Children.Clear();
         _topicCheckBoxes.Clear();
 
-        foreach (var topic in topics.Where(x => x.Id.HasValue))
+        foreach (var topicGroup in topics.Where(x => x.Id.HasValue)
+                     .GroupBy(x => CallCenterTopicCatalog.GetDisplayName(x.Name), StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(x => x.Key))
         {
-            var checkBox = new CheckBox { Content = topic.Name, Margin = new Thickness(4, 3, 4, 3) };
+            var checkBox = new CheckBox { Content = topicGroup.Key, Margin = new Thickness(4, 3, 4, 3) };
             checkBox.Checked += TopicCheckBox_Changed;
             checkBox.Unchecked += TopicCheckBox_Changed;
             _topicChoicesPanel.Children.Add(checkBox);
-            _topicCheckBoxes.Add((topic.Id!.Value, checkBox));
+            _topicCheckBoxes.Add((topicGroup.Select(x => x.Id!.Value).ToList(), checkBox));
         }
 
         _suppressTopicSelectionChange = false;
@@ -529,7 +531,7 @@ public partial class JournalPage : UserControl
         var showWithoutGroups = _groupFilter.WithoutCheckBox.IsChecked == true;
         var selectedTopicIds = _topicCheckBoxes
             .Where(x => x.CheckBox.IsChecked == true)
-            .Select(x => x.Id)
+            .SelectMany(x => x.Ids)
             .ToList();
         var showWithoutTopics = _withoutTopicsCheckBox.IsChecked == true;
 

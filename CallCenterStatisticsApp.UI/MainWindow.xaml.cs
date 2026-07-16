@@ -9,18 +9,20 @@ public partial class MainWindow : Window
     private readonly DashboardPage _dashboardPage;
     private readonly JournalPage _journalPage;
     private readonly EmployeeStatisticsPage _employeeStatisticsPage;
+    private readonly GoogleSheetsPage _googleSheetsPage;
     private readonly GroupStatisticsPage _groupStatisticsPage;
     private readonly ImportPage _importPage;
     private readonly TopicEnrichmentPage _topicEnrichmentPage;
     private readonly SettingsPage _settingsPage;
     private readonly BusyService _busy;
 
-    public MainWindow(DashboardPage dashboardPage, JournalPage journalPage, EmployeeStatisticsPage employeeStatisticsPage, GroupStatisticsPage groupStatisticsPage, ImportPage importPage, TopicEnrichmentPage topicEnrichmentPage, SettingsPage settingsPage, BusyService busy)
+    public MainWindow(DashboardPage dashboardPage, JournalPage journalPage, EmployeeStatisticsPage employeeStatisticsPage, GoogleSheetsPage googleSheetsPage, GroupStatisticsPage groupStatisticsPage, ImportPage importPage, TopicEnrichmentPage topicEnrichmentPage, SettingsPage settingsPage, BusyService busy)
     {
         InitializeComponent();
         _dashboardPage = dashboardPage;
         _journalPage = journalPage;
         _employeeStatisticsPage = employeeStatisticsPage;
+        _googleSheetsPage = googleSheetsPage;
         _groupStatisticsPage = groupStatisticsPage;
         _importPage = importPage;
         _topicEnrichmentPage = topicEnrichmentPage;
@@ -60,6 +62,13 @@ public partial class MainWindow : Window
         StatusText.Text = "Отчёт по группам готов";
     }
     private void TopicEnrichmentButton_Click(object sender, RoutedEventArgs e) => ShowPage(_topicEnrichmentPage, "Речевая аналитика", "Готово к обработке записей");
+
+    private async void GoogleSheetsButton_Click(object sender, RoutedEventArgs e)
+    {
+        ShowPage(_googleSheetsPage, "Гугл-таблички", "Формируем рабочую таблицу…");
+        await _googleSheetsPage.LoadAsync();
+        StatusText.Text = "Таблица показателей готова";
+    }
 
     private void OpenWindow<TWindow>() where TWindow : Window
     {
